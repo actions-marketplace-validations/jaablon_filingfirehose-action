@@ -1,0 +1,55 @@
+name: 'FilingFirehose Watch'
+description: 'Watch SEC EDGAR for new 8-K / S-3 / 13D filings matching criteria; fail the job (or open an issue) on a hit.'
+author: 'FilingFirehose'
+branding:
+  icon: 'bell'
+  color: 'orange'
+inputs:
+  query:
+    description: |
+      What to watch for. One of:
+        - "buried_8k"     — 8-Ks where body language flags a different item than reported
+        - "8k_items:1.05,5.02"   — 8-Ks reporting any of these item codes
+        - "activist:Saba"  — recent 13D / 13G filings tagged with an activist (substring)
+        - "atm:50"         — recent ATM offerings with shelf size > $50M
+    required: true
+  api_key:
+    description: 'FilingFirehose paid-tier API key. If omitted, the free public tier (last 72h) is used.'
+    required: false
+  fail_on_hit:
+    description: 'If "true", the job fails when any filing matches. Default "true".'
+    required: false
+    default: 'true'
+  open_issue:
+    description: 'If "true", open a GitHub issue per matching filing. Requires GITHUB_TOKEN with issues:write.'
+    required: false
+    default: 'false'
+  webhook_url:
+    description: 'Optional URL to POST matched filings to as JSON.'
+    required: false
+outputs:
+  hit_count:
+    description: 'Number of filings that matched the query.'
+  filings_json:
+    description: 'JSON array of matching filings.'
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - name: Install client
+      shell: bash
+      run: pip install --quiet 'filing-firehose @ git+https://github.com/jaablon/filingfirehose-python@main'
+    - name: Run watcher
+      shell: bash
+      env:
+        FF_QUERY: ${{ inputs.query }}
+        FF_API_KEY: ${{ inputs.api_key }}
+        FF_FAIL_ON_HIT: ${{ inputs.fail_on_hit }}
+        FF_OPEN_ISSUE: ${{ inputs.open_issue }}
+        FF_WEBHOOK_URL: ${{ inputs.webhook_url }}
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+      run: python -u "${{ github.action_path }}/watcher.py"
